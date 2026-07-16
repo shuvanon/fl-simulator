@@ -29,7 +29,7 @@
   .control{margin-bottom:16px}
   .control label{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
   .control label .val{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
-  .control .hint{color:var(--muted);font-size:11.5px;margin-top:4px}
+  .hint{color:var(--muted);font-size:11.5px;margin-top:4px}
   input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
   select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);
     border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer}
@@ -186,7 +186,7 @@
 
     <section class="panel">
       <h3>Decision boundaries</h3>
-      <p class="hint" style="margin-top:-6px;color:var(--muted)">Each client's local model (this round) vs. the aggregated <b style="color:var(--accent)">global</b> model. Divergent tiles = client drift.</p>
+      <p class="hint" style="margin-top:-6px">Each client's local model (this round) vs. the aggregated <b style="color:var(--accent)">global</b> model. Divergent tiles = client drift.</p>
       <div id="tiles" class="tiles"></div>
     </section>
   </main>
@@ -614,6 +614,7 @@ function buildTiles(n){
 function renderBoundary(canvas, model, points, pointY, grid){
   const ctx = canvas.getContext("2d");
   const cw = canvas.width, ch = canvas.height, b = S.bounds, G = grid || 44;
+  ctx.clearRect(0,0,cw,ch); // fills are translucent — stale frames would ghost through
   for(let i=0;i<G;i++){
     for(let j=0;j<G;j++){
       const dx = b.xmin + (i+0.5)/G*(b.xmax-b.xmin);
