@@ -74,3 +74,7 @@ kept **pure and DOM-free**, so it can be reused or tested independently of the p
 - Real datasets (e.g. downsampled MNIST) via TensorFlow.js.
 - More FL methods: FedProx, secure aggregation, differential privacy.
 - Quantity skew, quality skew and client-participation (stragglers / partial participation).
+
+## License
+
+[MIT](LICENSE) © 2026 [Shuvanon Razik](https://github.com/shuvanon)
