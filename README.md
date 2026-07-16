@@ -9,10 +9,6 @@ respond.
 > The training is **real**: a small MLP trained with hand-written gradient descent in plain
 > JavaScript. No ML libraries, no network calls, no faked numbers.
 
-📘 **New to federated learning, or want the full technical/teaching write-up?** See
-**[`REPORT.md`](REPORT.md)** — how it works, the data and math, a beginner step-by-step example,
-and an honest comparison with real FL systems.
-
 ## Run it
 
 Just open **`index.html`** in any modern browser (double-click, or drag it into a tab). It runs
@@ -71,12 +67,10 @@ for each round:
 
 Everything lives in a single `index.html`. The `<script>` is split into clearly labelled
 sections — `rng · data · model · fl · insights · ui · main` — and all of the simulation logic is
-kept **pure and DOM-free**, so only the `ui` section needs rewriting to later embed this as a
-component in a portfolio website.
+kept **pure and DOM-free**, so it can be reused or tested independently of the page.
 
 ## Roadmap / ideas
 
-- Embed as an interactive component on the portfolio site.
 - Real datasets (e.g. downsampled MNIST) via TensorFlow.js.
 - More FL methods: FedProx, secure aggregation, differential privacy.
-- Quantity skew and client-participation (stragglers / partial participation).
+- Quantity skew, quality skew and client-participation (stragglers / partial participation).

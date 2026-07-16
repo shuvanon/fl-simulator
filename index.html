@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="author" content="Shuvanon Razik" />
 <title>Mini Federated Learning Simulator</title>
 <style>
   :root{
@@ -91,12 +92,15 @@
   details p{margin:8px 0}
   footer{padding:14px 24px 34px;color:var(--muted);font-size:12px}
   footer code{background:var(--panel2);padding:1px 5px;border-radius:4px}
+  footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+  footer .credit{margin-top:8px;text-align:center}
 </style>
 </head>
 <body>
 <header>
   <h1>Mini <span class="accent">Federated Learning</span> Simulator</h1>
-  <p>Several "hospitals" each train a small neural network on their <em>own</em> local data, then a
+  <p>Several clients each train a small neural network on their <em>own</em> local data, then a
   server averages their models into one global model — no raw data ever leaves a client. Tune the
   scenario below and watch how per-client and global accuracy respond. The training is <strong>real</strong>
   (tiny MLP, hand-written backprop), not a mock-up.</p>
@@ -205,6 +209,8 @@
   no libraries, no network, no faked numbers — and even normalization is federated, built from
   client aggregates rather than pooled raw data. Data is synthetic 2-D Gaussian blobs so decision
   boundaries can be drawn. Open <code>index.html</code> directly; it runs fully offline.
+  <div class="credit">© 2026 <a href="https://github.com/shuvanon">Shuvanon Razik</a> · source on
+  <a href="https://github.com/shuvanon/fl-simulator">GitHub</a></div>
 </footer>
 
 <script>
@@ -213,8 +219,7 @@
  *  Mini Federated Learning Simulator
  *  Sections: rng · data · model · fl · insights · ui · main
  *  All simulation logic (rng/data/model/fl/insights) is pure & DOM-free so it
- *  can later be lifted into a portfolio component with only the ui section
- *  rewritten.
+ *  can be reused elsewhere with only the ui section rewritten.
  * ========================================================================= */
 
 const NUM_CLASSES = 3;

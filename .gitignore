@@ -6,3 +6,6 @@ desktop.ini
 .idea/
 .vscode/
 *.log
+
+# Local-only files (kept out of the public repo)
+REPORT.md
