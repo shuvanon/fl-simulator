@@ -153,6 +153,10 @@
       those weights (FedAvg) into a new global model. Accuracy is measured on one shared held-out test set.</p>
       <p>Raising <em>imbalance</em> skews each client toward different classes (via a Dirichlet split), so
       their models disagree — exactly the hard case federated learning has to cope with.</p>
+      <p>Even normalization is federated: clients share only count/sum/sum² aggregates of their raw
+      points, and the server combines those into a global mean/std that everyone standardizes with.
+      The held-out test set never touches the stats. (Real deployments would protect even these
+      aggregates with secure aggregation.)</p>
     </details>
   </aside>
 
@@ -198,7 +202,8 @@
 
 <footer>
   Honest by design: models are genuinely trained in your browser with hand-written gradient descent —
-  no libraries, no network, no faked numbers. Data is synthetic 2-D Gaussian blobs so decision
+  no libraries, no network, no faked numbers — and even normalization is federated, built from
+  client aggregates rather than pooled raw data. Data is synthetic 2-D Gaussian blobs so decision
   boundaries can be drawn. Open <code>index.html</code> directly; it runs fully offline.
 </footer>
 
@@ -275,13 +280,32 @@ function generateData(rand, gauss, nPerClass){
   }
   return {X, y};
 }
-function standardize(X){
-  const n = X.length, mean=[0,0], std=[0,0];
-  for(const p of X){ mean[0]+=p[0]; mean[1]+=p[1]; }
-  mean[0]/=n; mean[1]/=n;
-  for(const p of X){ std[0]+=(p[0]-mean[0])**2; std[1]+=(p[1]-mean[1])**2; }
-  std[0]=Math.sqrt(std[0]/n)||1; std[1]=Math.sqrt(std[1]/n)||1;
-  return X.map(p => [(p[0]-mean[0])/std[0], (p[1]-mean[1])/std[1]]);
+// Federated standardization, the way a real FL system does it: each client
+// shares only aggregate moments (count, sum, sum of squares) of its raw local
+// points — never the points themselves — and the server combines those into a
+// global mean/std that everyone standardizes with. The held-out test set plays
+// no part in the stats. (Production systems would protect even these
+// aggregates with secure aggregation.)
+function localMoments(X){
+  const m = {n:X.length, sum:[0,0], sq:[0,0]};
+  for(const p of X){
+    m.sum[0]+=p[0]; m.sum[1]+=p[1];
+    m.sq[0]+=p[0]*p[0]; m.sq[1]+=p[1]*p[1];
+  }
+  return m;
+}
+function combineMoments(ms){
+  const n = ms.reduce((s,m)=>s+m.n, 0) || 1;
+  const mean=[0,0], std=[0,0];
+  for(let d=0;d<2;d++){
+    mean[d] = ms.reduce((s,m)=>s+m.sum[d], 0)/n;
+    const ex2 = ms.reduce((s,m)=>s+m.sq[d], 0)/n;
+    std[d] = Math.sqrt(Math.max(0, ex2 - mean[d]*mean[d])) || 1;
+  }
+  return {mean, std};
+}
+function applyStandardize(X, st){
+  return X.map(p => [(p[0]-st.mean[0])/st.std[0], (p[1]-st.mean[1])/st.std[1]]);
 }
 function levelToAlpha(level){ // 0 (IID) .. 100 (extreme non-IID) -> Dirichlet alpha
   const t = level/100;
@@ -523,13 +547,18 @@ function initSim(){
   const rand = mulberry32(S.seed);
   const gauss = makeGaussian(rand);
   const raw = generateData(rand, gauss, 200);            // 600 points
-  const X = standardize(raw.X), y = raw.y;
-  const idx = shuffle([...Array(X.length).keys()], rand);
-  const nTest = Math.round(X.length*0.3);
+  const y = raw.y;
+  const idx = shuffle([...Array(raw.X.length).keys()], rand);
+  const nTest = Math.round(raw.X.length*0.3);
   const testIdx = idx.slice(0,nTest), trainIdx = idx.slice(nTest);
-  const Xtest = testIdx.map(i=>X[i]), ytest = testIdx.map(i=>y[i]);
   const alpha = levelToAlpha(cfg.imbalance);
   const clientIdx = partition(trainIdx, y, cfg.numClients, alpha, rand, gauss);
+  // Standardization stats come only from client-side aggregates of the training
+  // partition; the broadcast mean/std is then applied everywhere (each client to
+  // its own data, the server to its test benchmark).
+  const stats = combineMoments(clientIdx.map(ids => localMoments(ids.map(i=>raw.X[i]))));
+  const X = applyStandardize(raw.X, stats);
+  const Xtest = testIdx.map(i=>X[i]), ytest = testIdx.map(i=>y[i]);
   const clientData = clientIdx.map(ids => ({ X: ids.map(i=>X[i]), y: ids.map(i=>y[i]) }));
   // Per-client stats are fixed for the whole run — compute once and reuse in every render.
   const clientStats = clientData.map(cd => {
