@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mini Federated Learning Simulator</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#172033; --text:#e2e8f0;
+    --muted:#94a3b8; --accent:#22d3ee; --accent2:#0ea5e9; --border:#334155;
+    --c0:#f43f5e; --c1:#38bdf8; --c2:#a3e635; --good:#34d399; --bad:#fb7185;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 600px at 20% -10%, #16233b 0%, var(--bg) 55%);
+    color:var(--text); line-height:1.55; min-height:100vh;
+  }
+  header{padding:22px 24px 6px}
+  header h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header h1 .accent{color:var(--accent)}
+  header p{margin:6px 0 0;color:var(--muted);font-size:14px}
+  .wrap{display:grid;grid-template-columns:320px 1fr;gap:18px;padding:18px 24px 8px;align-items:start}
+  @media (max-width:900px){ .wrap{grid-template-columns:1fr} }
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .panel h3{margin:0 0 12px;font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  aside.controls{position:sticky;top:12px}
+  .control{margin-bottom:16px}
+  .control label{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
+  .control label .val{color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
+  .control .hint{color:var(--muted);font-size:11.5px;margin-top:4px}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+  select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);
+    border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer}
+  .btnrow{display:flex;gap:10px;margin-top:6px}
+  button{flex:1;border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:13px;
+    font-weight:600;cursor:pointer;background:var(--panel2);color:var(--text);transition:.15s}
+  button.primary{background:linear-gradient(180deg,var(--accent),var(--accent2));color:#04222b;border-color:transparent}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.5;cursor:not-allowed;filter:none}
+  .seed{margin-top:12px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .results{display:grid;gap:16px}
+  #results{margin:0;max-width:640px}
+  #globalHero{display:flex;align-items:center;gap:16px;padding:14px 16px;margin-bottom:14px;
+    border:1px solid var(--border);border-radius:12px;
+    background:linear-gradient(180deg,rgba(34,211,238,.10),rgba(34,211,238,.02))}
+  #globalHero .num{font-size:40px;font-weight:800;color:var(--accent);line-height:1;
+    min-width:104px;text-align:center;font-variant-numeric:tabular-nums}
+  #globalHero .gmeta{flex:1;min-width:0}
+  #globalHero .glabel{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
+  #globalHero .gtrack{height:10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+  #globalHero .gfill{height:100%;width:0;border-radius:6px;
+    background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .35s ease}
+  #globalHero .gsub{font-size:11.5px;color:var(--muted);margin-top:8px}
+  .crow{display:grid;grid-template-columns:118px 1fr 44px;align-items:center;gap:12px;padding:7px 2px}
+  .crow + .crow{border-top:1px solid rgba(51,65,85,.45)}
+  .crow-name{font-size:13px;font-weight:600}
+  .crow-meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-top:2px}
+  .crow-meta .dot{width:9px;height:9px;border-radius:3px;flex:none}
+  .track{height:12px;background:var(--panel2);border:1px solid var(--border);border-radius:7px;overflow:hidden}
+  .fill{height:100%;width:0;border-radius:7px;transition:width .35s ease,background-color .35s ease}
+  .crow-val{font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .crow.worst .crow-val{color:var(--bad)}
+  #observation{margin-top:12px;padding:12px 14px;border-left:3px solid var(--accent);
+    background:rgba(34,211,238,.06);border-radius:0 8px 8px 0;font-size:13.5px}
+  #observation b{color:var(--accent)}
+  #status{margin-top:10px;font-size:12px;color:var(--muted);min-height:16px}
+  canvas{display:block;max-width:100%;height:auto;border-radius:8px}
+  .legend{display:flex;gap:16px;margin-bottom:10px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .legend .chip{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+  .tile{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px;text-align:center;
+    cursor:zoom-in;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
+  .tile:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 8px 22px rgba(0,0,0,.4)}
+  .tile canvas{width:100%;height:auto;display:block}
+  .tile .cap{font-size:11.5px;color:var(--muted);margin-bottom:6px;font-variant-numeric:tabular-nums}
+  .tile.global{border-color:var(--accent);box-shadow:0 0 0 1px rgba(34,211,238,.25)}
+  .tile.global .cap{color:var(--accent);font-weight:700}
+  .zoomOverlay{position:fixed;inset:0;background:rgba(2,6,23,.82);display:flex;align-items:center;
+    justify-content:center;z-index:50;cursor:zoom-out}
+  .zoomOverlay[hidden]{display:none}
+  .zoomInner{text-align:center}
+  #zoomCanvas{border:1px solid var(--accent);border-radius:12px;max-width:92vw;max-height:74vh;
+    box-shadow:0 20px 60px rgba(0,0,0,.55);background:var(--panel2)}
+  .zoomCap{margin-top:12px;color:var(--text);font-size:15px;font-weight:600}
+  .zoomHint{margin-top:2px;color:var(--muted);font-size:12px}
+  details{margin-top:14px;font-size:12.5px;color:var(--muted)}
+  details summary{cursor:pointer;color:var(--text);font-size:13px}
+  details p{margin:8px 0}
+  footer{padding:14px 24px 34px;color:var(--muted);font-size:12px}
+  footer code{background:var(--panel2);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mini <span class="accent">Federated Learning</span> Simulator</h1>
+  <p>Several "hospitals" each train a small neural network on their <em>own</em> local data, then a
+  server averages their models into one global model — no raw data ever leaves a client. Tune the
+  scenario below and watch how per-client and global accuracy respond. The training is <strong>real</strong>
+  (tiny MLP, hand-written backprop), not a mock-up.</p>
+</header>
+
+<div class="wrap">
+  <aside class="panel controls">
+    <h3>Scenario</h3>
+
+    <div class="control">
+      <label>Hospitals / clients <span class="val" id="clientsV">5</span></label>
+      <input type="range" id="clients" min="2" max="10" step="1" value="5" />
+      <div class="hint">How many participants train separately.</div>
+    </div>
+
+    <div class="control">
+      <label>Data imbalance (non-IID) <span class="val" id="imbalanceV">90</span></label>
+      <input type="range" id="imbalance" min="0" max="100" step="1" value="90" />
+      <div class="hint">0 = every client sees all classes evenly · 100 = each client is dominated by one class.</div>
+    </div>
+
+    <div class="control">
+      <label>Aggregation method</label>
+      <select id="method">
+        <option value="fedavg">FedAvg — size-weighted average</option>
+        <option value="mean">Simple mean — unweighted</option>
+        <option value="median">Coordinate median — robust</option>
+      </select>
+      <div class="hint">How the server combines the client models each round.</div>
+    </div>
+
+    <div class="control">
+      <label>Local epochs <span class="val" id="epochsV">8</span></label>
+      <input type="range" id="epochs" min="1" max="20" step="1" value="8" />
+      <div class="hint">Training passes each client does before syncing. High + imbalanced ⇒ drift.</div>
+    </div>
+
+    <div class="control">
+      <label>Communication rounds <span class="val" id="roundsV">15</span></label>
+      <input type="range" id="rounds" min="1" max="40" step="1" value="15" />
+      <div class="hint">Train → average → repeat, this many times.</div>
+    </div>
+
+    <div class="btnrow">
+      <button class="primary" id="run">▶ Run</button>
+      <button id="reshuffle" title="New random data & init, then run">⟳ Reshuffle</button>
+    </div>
+    <div class="seed">seed: <span id="seedV">—</span> · same settings reproduce the same run</div>
+
+    <details>
+      <summary>How does this work?</summary>
+      <p>Each round, every client copies the current global model, trains it for a few epochs on its
+      local slice of a synthetic 2-D, 3-class dataset, and sends the weights back. The server averages
+      those weights (FedAvg) into a new global model. Accuracy is measured on one shared held-out test set.</p>
+      <p>Raising <em>imbalance</em> skews each client toward different classes (via a Dirichlet split), so
+      their models disagree — exactly the hard case federated learning has to cope with.</p>
+    </details>
+  </aside>
+
+  <main class="results">
+    <section class="panel">
+      <h3>Results</h3>
+      <div id="results"></div>
+      <div id="observation" style="display:none"></div>
+      <div id="status"></div>
+    </section>
+
+    <section class="panel">
+      <h3>Accuracy over rounds</h3>
+      <canvas id="chart" width="1040" height="440"></canvas>
+    </section>
+
+    <section class="panel">
+      <h3>Data distribution per client</h3>
+      <div class="legend">
+        <span class="chip"><span class="swatch" style="background:var(--c0)"></span>Class 0</span>
+        <span class="chip"><span class="swatch" style="background:var(--c1)"></span>Class 1</span>
+        <span class="chip"><span class="swatch" style="background:var(--c2)"></span>Class 2</span>
+        <span class="chip">bar height = number of samples</span>
+      </div>
+      <canvas id="bars" width="1040" height="300"></canvas>
+    </section>
+
+    <section class="panel">
+      <h3>Decision boundaries</h3>
+      <p class="hint" style="margin-top:-6px;color:var(--muted)">Each client's local model (this round) vs. the aggregated <b style="color:var(--accent)">global</b> model. Divergent tiles = client drift.</p>
+      <div id="tiles" class="tiles"></div>
+    </section>
+  </main>
+</div>
+
+<div id="zoom" class="zoomOverlay" hidden>
+  <div class="zoomInner">
+    <canvas id="zoomCanvas" width="460" height="460"></canvas>
+    <div class="zoomCap" id="zoomCap"></div>
+    <div class="zoomHint">click anywhere or press Esc to close</div>
+  </div>
+</div>
+
+<footer>
+  Honest by design: models are genuinely trained in your browser with hand-written gradient descent —
+  no libraries, no network, no faked numbers. Data is synthetic 2-D Gaussian blobs so decision
+  boundaries can be drawn. Open <code>index.html</code> directly; it runs fully offline.
+</footer>
+
+<script>
+"use strict";
+/* =========================================================================
+ *  Mini Federated Learning Simulator
+ *  Sections: rng · data · model · fl · insights · ui · main
+ *  All simulation logic (rng/data/model/fl/insights) is pure & DOM-free so it
+ *  can later be lifted into a portfolio component with only the ui section
+ *  rewritten.
+ * ========================================================================= */
+
+const NUM_CLASSES = 3;
+const HIDDEN = 10;
+const LR = 0.5;
+const CLASS_FILL = ["rgba(244,63,94,.35)","rgba(56,189,248,.35)","rgba(163,230,53,.35)"];
+const CLASS_SOLID = ["#f43f5e","#38bdf8","#a3e635"];
+
+/* ------------------------------- rng ----------------------------------- */
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function makeGaussian(rand){
+  let spare = null;
+  return function(mean=0, std=1){
+    if(spare !== null){ const v = spare; spare = null; return mean + std*v; }
+    let u,v,s;
+    do{ u = rand()*2-1; v = rand()*2-1; s = u*u+v*v; }while(s>=1 || s===0);
+    const mul = Math.sqrt(-2*Math.log(s)/s);
+    spare = v*mul;
+    return mean + std*(u*mul);
+  };
+}
+// Marsaglia–Tsang gamma sampler → Dirichlet, for the non-IID split.
+function gammaSample(rand, gauss, k){
+  if(k < 1){ return gammaSample(rand, gauss, k+1) * Math.pow(rand(), 1/k); }
+  const d = k - 1/3, c = 1/Math.sqrt(9*d);
+  while(true){
+    let x, v;
+    do{ x = gauss(0,1); v = 1 + c*x; }while(v <= 0);
+    v = v*v*v;
+    const u = rand();
+    if(u < 1 - 0.0331*x*x*x*x) return d*v;
+    if(Math.log(u) < 0.5*x*x + d*(1 - v + Math.log(v))) return d*v;
+  }
+}
+function dirichlet(rand, gauss, alphaVec){
+  const g = alphaVec.map(a => gammaSample(rand, gauss, a));
+  const sum = g.reduce((s,x)=>s+x, 0) || 1;
+  return g.map(x => x/sum);
+}
+function shuffle(a, rand){
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(rand()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+
+/* ------------------------------- data ---------------------------------- */
+function generateData(rand, gauss, nPerClass){
+  const centers = [[-2.4,-1.7],[2.4,-1.7],[0,2.6]]; // triangle of 3 blobs
+  const sigma = 1.8; // enough overlap that non-IID visibly hurts individual clients
+  const X = [], y = [];
+  for(let c=0;c<NUM_CLASSES;c++){
+    for(let i=0;i<nPerClass;i++){
+      X.push([gauss(centers[c][0], sigma), gauss(centers[c][1], sigma)]);
+      y.push(c);
+    }
+  }
+  return {X, y};
+}
+function standardize(X){
+  const n = X.length, mean=[0,0], std=[0,0];
+  for(const p of X){ mean[0]+=p[0]; mean[1]+=p[1]; }
+  mean[0]/=n; mean[1]/=n;
+  for(const p of X){ std[0]+=(p[0]-mean[0])**2; std[1]+=(p[1]-mean[1])**2; }
+  std[0]=Math.sqrt(std[0]/n)||1; std[1]=Math.sqrt(std[1]/n)||1;
+  return X.map(p => [(p[0]-mean[0])/std[0], (p[1]-mean[1])/std[1]]);
+}
+function levelToAlpha(level){ // 0 (IID) .. 100 (extreme non-IID) -> Dirichlet alpha
+  const t = level/100;
+  return Math.exp((1-t)*Math.log(50) + t*Math.log(0.06));
+}
+// Label-skew partition: each class is spread across clients by a Dirichlet draw.
+function partition(trainIdx, yAll, numClients, alpha, rand, gauss){
+  const clientIdx = Array.from({length:numClients}, ()=>[]);
+  const byClass = Array.from({length:NUM_CLASSES}, ()=>[]);
+  for(const idx of trainIdx) byClass[yAll[idx]].push(idx);
+  for(let c=0;c<NUM_CLASSES;c++){
+    shuffle(byClass[c], rand);
+    const p = dirichlet(rand, gauss, Array(numClients).fill(alpha));
+    const n = byClass[c].length; let assigned = 0;
+    for(let k=0;k<numClients;k++){
+      let cnt = (k===numClients-1) ? (n-assigned) : Math.round(p[k]*n);
+      cnt = Math.max(0, Math.min(cnt, n-assigned));
+      for(let j=0;j<cnt;j++) clientIdx[k].push(byClass[c][assigned+j]);
+      assigned += cnt;
+    }
+  }
+  // Never leave a client empty (would break training/aggregation).
+  for(let k=0;k<numClients;k++){
+    if(clientIdx[k].length===0){
+      let big=0; for(let j=0;j<numClients;j++) if(clientIdx[j].length>clientIdx[big].length) big=j;
+      if(clientIdx[big].length>1) clientIdx[k].push(clientIdx[big].pop());
+    }
+  }
+  return clientIdx;
+}
+
+/* ------------------------------- model --------------------------------- */
+// MLP: 2 -> HIDDEN (tanh) -> NUM_CLASSES (softmax), cross-entropy loss.
+function mat(r,c,fn){ return Array.from({length:r}, ()=>Array.from({length:c}, fn)); }
+function initModel(gauss){
+  const s1 = Math.sqrt(1/2), s2 = Math.sqrt(1/HIDDEN);
+  return {
+    W1: mat(2, HIDDEN, ()=>gauss(0,1)*s1),
+    b1: Array(HIDDEN).fill(0),
+    W2: mat(HIDDEN, NUM_CLASSES, ()=>gauss(0,1)*s2),
+    b2: Array(NUM_CLASSES).fill(0),
+  };
+}
+function cloneModel(m){
+  return { W1:m.W1.map(r=>r.slice()), b1:m.b1.slice(), W2:m.W2.map(r=>r.slice()), b2:m.b2.slice() };
+}
+function forward(m, x){
+  const H = m.b1.length, K = m.b2.length;
+  const a1 = new Array(H);
+  for(let h=0;h<H;h++){
+    a1[h] = Math.tanh(m.b1[h] + x[0]*m.W1[0][h] + x[1]*m.W1[1][h]);
+  }
+  const z2 = new Array(K);
+  for(let k=0;k<K;k++){
+    let s = m.b2[k];
+    for(let h=0;h<H;h++) s += a1[h]*m.W2[h][k];
+    z2[k] = s;
+  }
+  let mx = -Infinity; for(let k=0;k<K;k++) if(z2[k]>mx) mx=z2[k];
+  let sum = 0; const p = new Array(K);
+  for(let k=0;k<K;k++){ p[k]=Math.exp(z2[k]-mx); sum+=p[k]; }
+  for(let k=0;k<K;k++) p[k]/=sum;
+  return {a1, probs:p};
+}
+function trainEpoch(m, X, y){ // one full-batch gradient step
+  const H = m.b1.length, K = m.b2.length, n = X.length;
+  if(n===0) return;
+  const gW1 = mat(2,H,()=>0), gb1 = Array(H).fill(0), gW2 = mat(H,K,()=>0), gb2 = Array(K).fill(0);
+  for(let i=0;i<n;i++){
+    const x = X[i], t = y[i];
+    const {a1, probs} = forward(m, x);
+    const dz2 = new Array(K);
+    for(let k=0;k<K;k++) dz2[k] = probs[k] - (k===t ? 1 : 0);
+    for(let h=0;h<H;h++){
+      for(let k=0;k<K;k++) gW2[h][k] += a1[h]*dz2[k];
+    }
+    for(let k=0;k<K;k++) gb2[k] += dz2[k];
+    const dz1 = new Array(H);
+    for(let h=0;h<H;h++){
+      let s = 0; for(let k=0;k<K;k++) s += dz2[k]*m.W2[h][k];
+      dz1[h] = s*(1 - a1[h]*a1[h]);
+    }
+    for(let h=0;h<H;h++){ gW1[0][h]+=x[0]*dz1[h]; gW1[1][h]+=x[1]*dz1[h]; gb1[h]+=dz1[h]; }
+  }
+  const scale = LR/n;
+  for(let h=0;h<H;h++){
+    m.W1[0][h]-=scale*gW1[0][h]; m.W1[1][h]-=scale*gW1[1][h]; m.b1[h]-=scale*gb1[h];
+    for(let k=0;k<K;k++) m.W2[h][k]-=scale*gW2[h][k];
+  }
+  for(let k=0;k<K;k++) m.b2[k]-=scale*gb2[k];
+}
+function predict(m, x){
+  const {probs} = forward(m, x);
+  let mi=0, mv=-Infinity;
+  for(let k=0;k<probs.length;k++) if(probs[k]>mv){ mv=probs[k]; mi=k; }
+  return mi;
+}
+function accuracy(m, X, y){
+  if(X.length===0) return 0;
+  let c=0; for(let i=0;i<X.length;i++) if(predict(m, X[i])===y[i]) c++;
+  return c/X.length;
+}
+
+/* -------------------------------- fl ----------------------------------- */
+function flatten(m){
+  const H=m.b1.length, K=m.b2.length, out=[];
+  for(let i=0;i<2;i++) for(let h=0;h<H;h++) out.push(m.W1[i][h]);
+  for(let h=0;h<H;h++) out.push(m.b1[h]);
+  for(let h=0;h<H;h++) for(let k=0;k<K;k++) out.push(m.W2[h][k]);
+  for(let k=0;k<K;k++) out.push(m.b2[k]);
+  return out;
+}
+function unflatten(f, H, K){
+  let i=0; const W1=[[],[]];
+  for(let a=0;a<2;a++) for(let h=0;h<H;h++) W1[a][h]=f[i++];
+  const b1=[]; for(let h=0;h<H;h++) b1[h]=f[i++];
+  const W2=[]; for(let h=0;h<H;h++){ W2[h]=[]; for(let k=0;k<K;k++) W2[h][k]=f[i++]; }
+  const b2=[]; for(let k=0;k<K;k++) b2[k]=f[i++];
+  return {W1,b1,W2,b2};
+}
+function median(arr){
+  const a = arr.slice().sort((x,y)=>x-y), n=a.length;
+  return n%2 ? a[(n-1)/2] : 0.5*(a[n/2-1]+a[n/2]);
+}
+function aggregate(models, weights, method){
+  const H = models[0].b1.length, K = models[0].b2.length;
+  const flats = models.map(flatten), D = flats[0].length, out = new Array(D);
+  if(method==="fedavg"){
+    const W = weights.reduce((s,x)=>s+x,0) || 1;
+    for(let d=0;d<D;d++){ let s=0; for(let m=0;m<flats.length;m++) s+=weights[m]*flats[m][d]; out[d]=s/W; }
+  }else if(method==="mean"){
+    for(let d=0;d<D;d++){ let s=0; for(let m=0;m<flats.length;m++) s+=flats[m][d]; out[d]=s/flats.length; }
+  }else{ // median
+    const tmp = new Array(flats.length);
+    for(let d=0;d<D;d++){ for(let m=0;m<flats.length;m++) tmp[m]=flats[m][d]; out[d]=median(tmp); }
+  }
+  return unflatten(out, H, K);
+}
+// One communication round: local training on each client, then aggregate.
+function stepRound(S){
+  const localModels=[], localAcc=[], weights=[];
+  for(let c=0;c<S.config.numClients;c++){
+    const cd = S.clientData[c];
+    const lm = cloneModel(S.global);
+    for(let e=0;e<S.config.localEpochs;e++) trainEpoch(lm, cd.X, cd.y);
+    localModels.push(lm);
+    localAcc.push(accuracy(lm, S.Xtest, S.ytest));
+    weights.push(cd.X.length);
+  }
+  S.global = aggregate(localModels, weights, S.config.method);
+  const gAcc = accuracy(S.global, S.Xtest, S.ytest);
+  S.clientModels = localModels;
+  S.clientAcc = localAcc;
+  S.round++;
+  S.history.global.push(gAcc);
+  for(let c=0;c<S.config.numClients;c++) S.history.clients[c].push(localAcc[c]);
+}
+
+/* ----------------------------- insights -------------------------------- */
+const pct = x => Math.round(x*100) + "%";
+const samplesTxt = n => `${n} sample${n===1 ? "" : "s"}`;
+function classCounts(cd){
+  const counts = Array(NUM_CLASSES).fill(0);
+  for(const yy of cd.y) counts[yy]++;
+  return counts;
+}
+// Grounded in the *measured* run, not just the slider settings, so the text can
+// never contradict the numbers on screen.
+function makeObservation(S){
+  const gAcc = S.history.global[S.history.global.length-1];
+  const accs = S.clientAcc;
+  const meanAcc = accs.reduce((a,b)=>a+b,0)/accs.length;
+  const worst = accs.indexOf(Math.min(...accs));
+  const minAcc = accs[worst], maxAcc = Math.max(...accs), spread = maxAcc - minAcc;
+  const E = S.config.localEpochs, method = S.config.method;
+  const fracs = S.clientStats; // precomputed { counts, n, dom, frac } per client
+  const sizes = fracs.map(s => s.n);
+  const sizeSpread = Math.max(...sizes) - Math.min(...sizes);
+
+  const skewIdx = fracs.map(f=>f.frac).indexOf(Math.max(...fracs.map(f=>f.frac)));
+  const maxFrac = fracs[skewIdx].frac;
+  const meanFrac = fracs.reduce((s,f)=>s+f.frac,0)/fracs.length;
+
+  const out = [];
+
+  if(meanFrac < 0.45)
+    out.push(`Clients hold fairly balanced class mixes (on average ${pct(meanFrac)} in their dominant class), close to the IID ideal.`);
+  else if(meanFrac < 0.62)
+    out.push(`Data is moderately non-IID — clients average ${pct(meanFrac)} in one class, and the most lopsided (client ${skewIdx+1}) is ${pct(maxFrac)} class ${fracs[skewIdx].dom}.`);
+  else
+    out.push(`Data is strongly non-IID — clients average ${pct(meanFrac)} in a single class, and client ${skewIdx+1} is ${pct(maxFrac)} class ${fracs[skewIdx].dom}.`);
+
+  const lag = Math.max(spread, gAcc - minAcc); // a client can lag the pack or just the global
+  if(lag >= 0.10){
+    out.push(`Local accuracy ranges ${pct(minAcc)}–${pct(maxAcc)}; client ${worst+1} (mostly class ${fracs[worst].dom}) manages only ${pct(minAcc)} on the full three-class test set because it barely sees the other classes.`);
+    if(E >= 6 && spread >= 0.22)
+      out.push(`The high local-epoch count (${E}) lets each client overfit its own classes before syncing, which widened that gap.`);
+  } else {
+    out.push(`All clients land within a few points of each other (${pct(minAcc)}–${pct(maxAcc)}).`);
+  }
+
+  if(spread >= 0.15 && gAcc >= meanAcc - 0.01)
+    out.push(`Yet the aggregated <b>global</b> model still reaches ${pct(gAcc)} — averaging the biased client models largely cancels their individual skew, which is exactly why federated learning works.`);
+  else if(gAcc <= meanAcc - 0.02)
+    out.push(`The global model (${pct(gAcc)}) even trails the average client (${pct(meanAcc)}) — this aggregation is struggling to reconcile the divergent updates.`);
+  else
+    out.push(`The global model reaches ${pct(gAcc)}, about level with its clients.`);
+
+  if(method==="mean" && sizeSpread >= Math.max(...sizes)*0.4)
+    out.push(`Note: you're using an unweighted mean while client sizes vary a lot (${Math.min(...sizes)}–${Math.max(...sizes)} samples); size-weighted FedAvg usually holds up better here.`);
+  else if(method==="median")
+    out.push(`Note: coordinate-median aggregation resists outlier clients but can leave a little accuracy on the table.`);
+
+  return out.join(" ");
+}
+
+/* -------------------------------- ui ----------------------------------- */
+const el = id => document.getElementById(id);
+let S = { seed: (Math.random()*1e9)>>>0 };
+let timer = null;
+
+function readConfig(){
+  return {
+    numClients:+el("clients").value,
+    imbalance:+el("imbalance").value,
+    localEpochs:+el("epochs").value,
+    rounds:+el("rounds").value,
+    method:el("method").value,
+  };
+}
+function computeBounds(X){
+  let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
+  for(const p of X){ if(p[0]<xmin)xmin=p[0]; if(p[0]>xmax)xmax=p[0]; if(p[1]<ymin)ymin=p[1]; if(p[1]>ymax)ymax=p[1]; }
+  const px=(xmax-xmin)*0.08+0.3, py=(ymax-ymin)*0.08+0.3;
+  return {xmin:xmin-px,xmax:xmax+px,ymin:ymin-py,ymax:ymax+py};
+}
+function initSim(){
+  const cfg = readConfig();
+  const rand = mulberry32(S.seed);
+  const gauss = makeGaussian(rand);
+  const raw = generateData(rand, gauss, 200);            // 600 points
+  const X = standardize(raw.X), y = raw.y;
+  const idx = shuffle([...Array(X.length).keys()], rand);
+  const nTest = Math.round(X.length*0.3);
+  const testIdx = idx.slice(0,nTest), trainIdx = idx.slice(nTest);
+  const Xtest = testIdx.map(i=>X[i]), ytest = testIdx.map(i=>y[i]);
+  const alpha = levelToAlpha(cfg.imbalance);
+  const clientIdx = partition(trainIdx, y, cfg.numClients, alpha, rand, gauss);
+  const clientData = clientIdx.map(ids => ({ X: ids.map(i=>X[i]), y: ids.map(i=>y[i]) }));
+  // Per-client stats are fixed for the whole run — compute once and reuse in every render.
+  const clientStats = clientData.map(cd => {
+    const counts = classCounts(cd), n = cd.X.length, m = Math.max(...counts);
+    return { counts, n, dom: counts.indexOf(m), frac: m / (n || 1) };
+  });
+  const global = initModel(gauss);
+
+  S.config = cfg; S.X = X; S.y = y; S.Xtest = Xtest; S.ytest = ytest;
+  S.clientData = clientData; S.clientStats = clientStats; S.global = global; S.round = 0;
+  S.tileEvery = Math.max(1, Math.ceil(cfg.rounds / 12)); // throttle costly tile re-renders during animation
+  S.history = { global:[], clients: Array.from({length:cfg.numClients}, ()=>[]) };
+  S.clientModels = clientData.map(()=>global);
+  S.clientAcc = clientData.map(()=>0);
+  S.bounds = computeBounds(X);
+  el("seedV").textContent = S.seed;
+  buildResults(cfg.numClients);
+  buildTiles(cfg.numClients);
+}
+
+/* ---- canvas helpers ---- */
+function toCanvas(p, b, cw, ch){
+  return [ (p[0]-b.xmin)/(b.xmax-b.xmin)*cw, (b.ymax-p[1])/(b.ymax-b.ymin)*ch ];
+}
+function buildResults(n){
+  let html = `<div id="globalHero">`+
+    `<div class="num" id="gNum">—</div>`+
+    `<div class="gmeta"><div class="glabel">Global model accuracy</div>`+
+    `<div class="gtrack"><div class="gfill" id="gFill"></div></div>`+
+    `<div class="gsub" id="gSub"></div></div></div>`;
+  for(let c=0;c<n;c++){
+    html += `<div class="crow" id="crow${c}">`+
+      `<div><div class="crow-name">Client ${c+1}</div>`+
+      `<div class="crow-meta"><span class="dot" id="rowDot${c}"></span><span id="rowMeta${c}">—</span></div></div>`+
+      `<div class="track"><div class="fill" id="rowFill${c}"></div></div>`+
+      `<div class="crow-val" id="rowVal${c}">—</div></div>`;
+  }
+  el("results").innerHTML = html;
+}
+function buildTiles(n){
+  const wrap = el("tiles"); wrap.innerHTML = "";
+  for(let c=0;c<n;c++){
+    const t = document.createElement("div"); t.className = "tile"; t.title = "click to enlarge";
+    t.innerHTML = `<div class="cap" id="cap${c}">Client ${c+1}</div>`;
+    const cv = document.createElement("canvas"); cv.width=200; cv.height=200; cv.id="tile"+c;
+    t.appendChild(cv); t.addEventListener("click", ()=>openZoom(c)); wrap.appendChild(t);
+  }
+  const gt = document.createElement("div"); gt.className="tile global"; gt.title = "click to enlarge";
+  gt.innerHTML = `<div class="cap">🌐 Global model</div>`;
+  const gc = document.createElement("canvas"); gc.width=200; gc.height=200; gc.id="tileG";
+  gt.appendChild(gc); gt.addEventListener("click", ()=>openZoom("G")); el("tiles").appendChild(gt);
+}
+function renderBoundary(canvas, model, points, pointY, grid){
+  const ctx = canvas.getContext("2d");
+  const cw = canvas.width, ch = canvas.height, b = S.bounds, G = grid || 44;
+  for(let i=0;i<G;i++){
+    for(let j=0;j<G;j++){
+      const dx = b.xmin + (i+0.5)/G*(b.xmax-b.xmin);
+      const dy = b.ymax - (j+0.5)/G*(b.ymax-b.ymin);
+      ctx.fillStyle = CLASS_FILL[predict(model,[dx,dy])];
+      ctx.fillRect(Math.floor(i*cw/G), Math.floor(j*ch/G), Math.ceil(cw/G)+1, Math.ceil(ch/G)+1);
+    }
+  }
+  if(points){
+    const r = Math.max(1.8, cw/70);
+    for(let i=0;i<points.length;i++){
+      const [px,py] = toCanvas(points[i], b, cw, ch);
+      ctx.beginPath(); ctx.arc(px, py, r, 0, 7);
+      ctx.fillStyle = CLASS_SOLID[pointY[i]]; ctx.fill();
+      ctx.lineWidth = .5; ctx.strokeStyle = "rgba(15,23,42,.6)"; ctx.stroke();
+    }
+  }
+}
+function renderTiles(){
+  for(let c=0;c<S.config.numClients;c++){
+    const cd = S.clientData[c];
+    renderBoundary(el("tile"+c), S.clientModels[c], cd.X, cd.y);
+    el("cap"+c).textContent = `Client ${c+1} · ${samplesTxt(cd.X.length)} · ${pct(S.clientAcc[c]||0)}`;
+  }
+  renderBoundary(el("tileG"), S.global, S.Xtest, S.ytest);
+}
+// Click a tile to see its decision boundary large and crisp.
+function openZoom(kind){
+  if(!S.clientModels) return;
+  const isG = kind === "G";
+  const model = isG ? S.global : S.clientModels[kind];
+  const pts   = isG ? S.Xtest : S.clientData[kind].X;
+  const py    = isG ? S.ytest : S.clientData[kind].y;
+  renderBoundary(el("zoomCanvas"), model, pts, py, 90);
+  el("zoomCap").textContent = isG
+    ? `Global model — ${pct(S.history.global[S.history.global.length-1]||0)} on the shared test set`
+    : `Client ${kind+1} — ${samplesTxt(S.clientData[kind].X.length)}, ${pct(S.clientAcc[kind]||0)} on the shared test set`;
+  el("zoom").hidden = false;
+}
+function renderBars(){
+  const canvas = el("bars"), ctx = canvas.getContext("2d");
+  const cw = canvas.width, ch = canvas.height;
+  ctx.clearRect(0,0,cw,ch);
+  const n = S.config.numClients;
+  const counts = S.clientStats.map(s => s.counts);
+  const totals = counts.map(c=>c[0]+c[1]+c[2]);
+  const maxTotal = Math.max(1, ...totals);
+  const padB = 30, padT = 14, plotH = ch - padB - padT;
+  const slot = cw / n, barW = Math.min(46, slot*0.55);
+  ctx.font = "11px system-ui"; ctx.textAlign = "center";
+  for(let c=0;c<n;c++){
+    const cx = c*slot + slot/2;
+    let yTop = ch - padB;
+    for(let k=0;k<NUM_CLASSES;k++){
+      const h = counts[c][k]/maxTotal*plotH;
+      ctx.fillStyle = CLASS_SOLID[k];
+      ctx.fillRect(cx - barW/2, yTop - h, barW, h);
+      yTop -= h;
+    }
+    ctx.fillStyle = "#94a3b8";
+    ctx.fillText("Client "+(c+1), cx, ch - padB + 16);
+    ctx.fillStyle = "#e2e8f0";
+    ctx.fillText(String(totals[c]), cx, yTop - 5);
+  }
+}
+function renderChart(){
+  const canvas = el("chart"), ctx = canvas.getContext("2d");
+  const cw = canvas.width, ch = canvas.height;
+  ctx.clearRect(0,0,cw,ch);
+  const padL=42, padR=14, padT=14, padB=26;
+  const plotW = cw-padL-padR, plotH = ch-padT-padB;
+  const R = S.config.rounds;
+  const xAt = r => padL + (R<=1 ? plotW/2 : (r/(R-1))*plotW);   // r is 0-based round index
+  const yAt = a => padT + (1-a)*plotH;
+  // grid + y labels
+  ctx.strokeStyle = "#334155"; ctx.fillStyle="#94a3b8"; ctx.font="11px system-ui"; ctx.textAlign="right";
+  for(let g=0;g<=4;g++){
+    const a = g/4, yy = yAt(a);
+    ctx.globalAlpha=.5; ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(cw-padR,yy); ctx.stroke(); ctx.globalAlpha=1;
+    ctx.fillText(Math.round(a*100)+"%", padL-6, yy+3);
+  }
+  // faint per-client lines
+  for(let c=0;c<S.history.clients.length;c++){
+    const h = S.history.clients[c];
+    ctx.strokeStyle = "rgba(148,163,184,.35)"; ctx.lineWidth=1; ctx.beginPath();
+    for(let r=0;r<h.length;r++){ const x=xAt(r), yv=yAt(h[r]); r?ctx.lineTo(x,yv):ctx.moveTo(x,yv); }
+    ctx.stroke();
+  }
+  // global line
+  const gh = S.history.global;
+  ctx.strokeStyle = "#22d3ee"; ctx.lineWidth=2.4; ctx.beginPath();
+  for(let r=0;r<gh.length;r++){ const x=xAt(r), yv=yAt(gh[r]); r?ctx.lineTo(x,yv):ctx.moveTo(x,yv); }
+  ctx.stroke();
+  if(gh.length){
+    const lr = gh.length-1, x=xAt(lr), yv=yAt(gh[lr]);
+    ctx.fillStyle="#22d3ee"; ctx.beginPath(); ctx.arc(x,yv,3.5,0,7); ctx.fill();
+    ctx.textAlign="left"; ctx.fillText("global "+pct(gh[lr]), Math.min(x+8, cw-70), yv-6);
+  }
+  ctx.fillStyle="#94a3b8"; ctx.textAlign="center";
+  ctx.fillText("round →", padL+plotW/2, ch-6);
+}
+function renderReadout(){
+  const n = S.config.numClients, accs = S.clientAcc;
+  const g = S.history.global.length ? S.history.global[S.history.global.length-1] : 0;
+  el("gNum").textContent = pct(g);
+  el("gFill").style.width = (g*100).toFixed(1)+"%";
+  const minA = Math.min(...accs), maxA = Math.max(...accs);
+  const worst = accs.indexOf(minA);
+  const mean = accs.reduce((a,b)=>a+b,0)/accs.length;
+  el("gSub").textContent = `aggregated from ${n} clients · best ${pct(maxA)} · worst ${pct(minA)} · average client ${pct(mean)}`;
+  for(let c=0;c<n;c++){
+    const a = accs[c]||0;
+    const fill = el("rowFill"+c);
+    fill.style.width = (a*100).toFixed(1)+"%";
+    const hue = Math.round(Math.max(0, Math.min(1, (a-0.4)/0.5)) * 140); // 40%→red … 90%→green
+    fill.style.backgroundColor = `hsl(${hue},70%,48%)`;
+    el("rowVal"+c).textContent = pct(a);
+    const st = S.clientStats[c];
+    el("rowDot"+c).style.backgroundColor = CLASS_SOLID[st.dom];
+    el("rowMeta"+c).textContent = `${samplesTxt(st.n)} · mostly class ${st.dom}`;
+    el("crow"+c).classList.toggle("worst", c===worst && (maxA-minA)>=0.05);
+  }
+}
+function showObservation(){
+  const obs = el("observation");
+  obs.style.display = "block";
+  obs.innerHTML = "<b>Observation:</b> " + makeObservation(S);
+}
+function setStatus(t){ el("status").textContent = t; }
+function setRunning(on){
+  el("run").disabled = on; el("reshuffle").disabled = on;
+  ["clients","imbalance","epochs","rounds","method"].forEach(id=>el(id).disabled=on);
+}
+
+/* ---- run loop (animated across rounds) ---- */
+function run(){
+  if(timer){ clearTimeout(timer); timer=null; }
+  el("observation").style.display = "none";
+  initSim();
+  renderBars(); renderTiles(); renderReadout(); renderChart();
+  setRunning(true);
+  loop();
+}
+function loop(){
+  if(S.round >= S.config.rounds){ finish(); return; }
+  stepRound(S);
+  renderReadout(); renderChart();
+  if(S.round % S.tileEvery === 0) renderTiles(); // boundaries evolve slowly; no need to redraw every round
+  setStatus(`Training… round ${S.round}/${S.config.rounds}`);
+  timer = setTimeout(loop, 90);
+}
+function finish(){
+  timer = null;
+  setRunning(false);
+  renderTiles(); // draw the final boundaries in full after any throttled rounds
+  showObservation();
+  const g = S.history.global[S.history.global.length-1];
+  setStatus(`Done — ${S.config.rounds} rounds · ${S.config.numClients} clients · global accuracy ${pct(g)}.`);
+}
+
+/* -------------------------------- main --------------------------------- */
+function wireControls(){
+  const pairs = [["clients","clientsV"],["imbalance","imbalanceV"],["epochs","epochsV"],["rounds","roundsV"]];
+  pairs.forEach(([id,out])=> el(id).addEventListener("input", ()=> el(out).textContent = el(id).value));
+  el("run").addEventListener("click", run);
+  el("reshuffle").addEventListener("click", ()=>{ S.seed = (Math.random()*1e9)>>>0; run(); });
+  el("zoom").addEventListener("click", ()=>{ el("zoom").hidden = true; });
+  document.addEventListener("keydown", e=>{ if(e.key === "Escape") el("zoom").hidden = true; });
+  el("seedV").textContent = S.seed;
+}
+wireControls();
+run(); // run once on load so the page is alive immediately
+</script>
+</body>
+</html>
